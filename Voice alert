@@ -1,0 +1,589 @@
+#include <TTS.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+uint8_t battery[8]  = {B01110, B11111, B11111, B11111, B11111, B11111, B11111, B11111};
+uint8_t temp[8]  = {B00100, B00100, B00100, B00100, B00100, B01110, B11111, B01110};
+uint8_t frost[8] = {B10101, B01010, B00100, B11111, B00100, B01010, B10101, B00000};
+uint8_t battlow[8] = {B01110, B11111, B10001, B10001, B10001, B11001, B11101, B11111};
+uint8_t warning[8]  = {B00100, B01010, B10101, B10101, B10001, B10101, B10001, B11111};
+uint8_t battfault[8] = {B01110, B11111, B10001, B10101, B10101, B10001, B10101, B11111};
+uint8_t cross[8] = {0x0, 0x1b, 0xe, 0x4, 0xe, 0x1b, 0x0};
+uint8_t retarrow[8] = {  0x1, 0x1, 0x5, 0x9, 0x1f, 0x8, 0x4};
+
+// Media pins
+const int PWM = 3;
+const int switchPin = 13;                          
+const int readyPin = 2;
+const int doorPin = 4;
+const int mwPin = 7;
+const int bmsPin = 6;
+const int parkPin = 8;
+const int brakePin = 5;
+const int auderrPin = 9;
+const int motionPin = 10;
+const int seatbeltPin = 11;
+const int lightPin = 12;
+const int temperature1Pin = A1;
+const int temperature2Pin = A2;
+const int temperature3Pin = A3;
+
+int doorState = 0; 
+int mwState = 0; 
+int bmsState = 0; 
+int parkState = 0; 
+int brakeState = 0; 
+int auderrState = 0; 
+int motionState = 0;
+int seatbeltState = 0;
+int lightState = 0;
+
+boolean ready = false;
+boolean lowTemp = false;
+boolean mwActive = false;
+boolean ampHot = false;
+boolean parkActive = false;
+boolean battLow = false;
+boolean brakeFault = false;
+boolean audioFault = false;
+boolean bmsFault = false;
+boolean demoMode = false;
+
+TTS text2speech(PWM);  // default is digital pin 10
+
+LiquidCrystal_I2C lcd(0x3F, 16, 2);
+
+void setup() { 
+  pinMode(switchPin, OUTPUT);
+ pinMode(readyPin, INPUT_PULLUP);
+ pinMode(doorPin, INPUT_PULLUP);
+ pinMode(mwPin, INPUT_PULLUP);
+ pinMode(bmsPin, INPUT_PULLUP);
+ pinMode(parkPin, INPUT_PULLUP);
+ pinMode(brakePin, INPUT_PULLUP);
+ pinMode(auderrPin, INPUT_PULLUP);
+ pinMode(motionPin, INPUT_PULLUP);
+ pinMode(seatbeltPin, INPUT_PULLUP);
+ pinMode(lightPin, INPUT_PULLUP);
+
+   Serial.begin(9600); 
+ text2speech.setPitch(1);
+
+ lcd.begin();
+ lcd.backlight();
+
+ lcd.createChar(0, battery);
+ lcd.createChar(1, temp);
+ lcd.createChar(2, frost);
+ lcd.createChar(3, battlow);
+ lcd.createChar(4, warning);
+ lcd.createChar(5, battfault);
+ lcd.createChar(6, cross);
+ lcd.createChar(7, retarrow);
+ lcd.home();
+}
+
+void loop() {
+ doorState = digitalRead(doorPin);
+ mwState = digitalRead(mwPin);
+ bmsState = digitalRead(bmsPin);
+ parkState = digitalRead(parkPin);
+ brakeState = digitalRead(brakePin);
+ auderrState = digitalRead(auderrPin);
+ motionState = digitalRead(motionPin);
+ seatbeltState = digitalRead(seatbeltPin);
+ lightState = digitalRead(lightPin);
+
+ // read the input on analog pin 0:
+ int sensorValue = analogRead(A0);
+ int batteryLevel = map(sensorValue, 0, 1023, 0, 100);
+ // print out the value you read:
+ Serial.print("Battery: ");
+ Serial.print(batteryLevel);
+ Serial.println("%");
+
+  float voltage2, degreesC1, degreesF1;
+
+ voltage2 = getVoltage2(temperature1Pin);
+
+ degreesC1 = (voltage2 - 0.5) * 100.0;
+
+ degreesF1 = degreesC1 * (9.0/5.0) + 32.0;
+
+ Serial.print("Motor Temp: ");
+ Serial.print(degreesF1);
+ Serial.println("F");
+
+  float voltage3, degreesC2, degreesF2;
+
+ voltage3 = getVoltage3(temperature2Pin);
+
+ degreesC2 = (voltage3 - 0.5) * 100.0;
+
+ degreesF2 = degreesC2 * (9.0/5.0) + 32.0;
+
+ Serial.print("Amplifier Temp: ");
+ Serial.print(degreesF2);
+ Serial.println("F");
+
+   float voltage4, degreesC3, degreesF3;
+
+ voltage4 = getVoltage4(temperature3Pin);
+
+ degreesC3 = (voltage4 - 0.5) * 100.0;
+
+ degreesF3 = degreesC3 * (9.0/5.0) + 32.0;
+
+ Serial.print("Ambient Temp: ");
+ Serial.print(degreesF3);
+ Serial.println("F");
+
+if(digitalRead(readyPin) == LOW)
+ {if(ready == false)
+ {ready = true;
+ demoMode = false;
+ lcd.clear();
+ lcd.backlight();
+ lcd.print("Initializing...");
+ digitalWrite(switchPin, HIGH);
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+    delay(500);
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+    delay(500);
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+    delay(500);
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+    delay(500);
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+    delay(500);
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+    delay(500);
+    lcd.clear();
+    lcd.print("Ready To Drive.");
+   text2speech.sayText("Ready to drive");
+    delay(500);
+    digitalWrite(switchPin, LOW);
+ }
+ }if(ready == true)
+ {
+ lcd.clear();
+ lcd.write(0);
+ lcd.print(batteryLevel);
+ lcd.print("%");
+ lcd.setCursor(7, 0);
+ lcd.write(1);
+ lcd.print(degreesF1);
+ lcd.print("F");
+  lcd.setCursor(0, 1);
+ lcd.print("Temp: ");
+ lcd.print(degreesF3);
+ lcd.print("F");
+
+ if(degreesF1 >= 210) 
+ { 
+   digitalWrite(switchPin, HIGH);
+   lcd.clear();
+   lcd.print("Motor Temp.");
+   lcd.setCursor(0, 1);
+   lcd.print("Too Hot");
+
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Motor temperature is too hot");
+   delay(500);
+   digitalWrite(switchPin, LOW);
+ }if(degreesF2 >= 210) 
+ {
+ if(ampHot == false) 
+   {
+   ampHot = true;
+   digitalWrite(switchPin, HIGH);
+   lcd.clear();
+   lcd.print("Amplifier Temp.");
+   lcd.setCursor(0, 1);
+   lcd.print("Too Hot");
+
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Amplifier temperature is too hot");
+   delay(500);
+   digitalWrite(switchPin, LOW);
+ } 
+ }
+ if(degreesF3 <= 35) 
+ {
+   lcd.setCursor(13, 1);
+   lcd.write(2);
+   if(lowTemp == false) 
+   {
+   lowTemp = true;
+   lcd.clear();
+   lcd.print("Ambient Temp.");
+   lcd.setCursor(0, 1);
+   lcd.print("Low");
+   digitalWrite(switchPin, HIGH);
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Cold weather is possible, please use caution.");
+   delay(500);
+   digitalWrite(switchPin, LOW);
+   }
+ }if(batteryLevel <= 20) 
+ {
+   lcd.setCursor(0, 0);
+   lcd.write(3);
+   if(battLow == false) 
+   {
+   battLow = true;
+   digitalWrite(switchPin, HIGH);
+   lcd.clear();
+   lcd.print("Battery Low");
+   lcd.setCursor(0, 1);
+   lcd.print("");
+
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Battery life is low, please recharge soon.");
+   delay(500);
+   digitalWrite(switchPin, LOW);
+ }
+ }if(seatbeltState == HIGH && motionState == LOW)
+ {
+   digitalWrite(switchPin, HIGH);
+   lcd.clear();
+   lcd.print("Please Fasten");
+   lcd.setCursor(0, 1);
+   lcd.print("Seatbelt");
+
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Please fasten your seatbelt");
+    delay(500);
+    digitalWrite(switchPin, LOW);
+ }if(doorState == LOW && motionState == LOW)
+ {
+   digitalWrite(switchPin, HIGH);
+   lcd.clear();
+   lcd.print("Door Open");
+   lcd.setCursor(0, 1);
+   lcd.print("");
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("A door is open");
+    delay(500);
+    digitalWrite(switchPin, LOW);
+ }if(mwState == LOW)
+ {
+   lcd.setCursor(14, 1);
+   lcd.write(4);
+   if(mwActive == false) 
+   {
+   mwActive = true;
+   digitalWrite(switchPin, HIGH);
+   lcd.clear();
+   lcd.print("Master Warning");
+   lcd.setCursor(0, 1);
+   lcd.print("");
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Check Master Warning");
+    delay(500);
+    digitalWrite(switchPin, LOW);
+ }
+ }if(bmsState == LOW)
+ {
+   lcd.setCursor(0, 0);
+   lcd.write(5);
+    if(bmsFault == false) 
+   {
+   bmsFault = true;
+   digitalWrite(switchPin, HIGH);
+   lcd.clear();
+   lcd.print("BMS Fault");
+   lcd.setCursor(0, 1);
+   lcd.print("");
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Please service your battery monitoring system");
+    delay(500);
+    digitalWrite(switchPin, LOW);
+ }
+ }if(parkState == LOW && motionState == LOW)
+ {
+    if(parkActive == false) 
+   {
+   parkActive = true;
+   digitalWrite(switchPin, HIGH);
+   lcd.clear();
+   lcd.print("Parking Brake");
+   lcd.setCursor(0, 1);
+   lcd.print("Engaged");
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Your parking brake is engaged");
+    delay(500);
+    digitalWrite(switchPin, LOW);
+ }
+ }if(brakeState == LOW)
+ {
+   if(brakeFault == false)
+ {brakeFault = true;
+   digitalWrite(switchPin, HIGH);
+   lcd.clear();
+   lcd.print("Brake System");
+   lcd.setCursor(0, 1);
+   lcd.print("Fault");
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Please service your brake system");
+    delay(500);
+    digitalWrite(switchPin, LOW);
+ }
+ }if(auderrState == LOW)
+ {
+   if(audioFault == false)
+ {audioFault = true;
+   digitalWrite(switchPin, HIGH);
+   lcd.clear();
+   lcd.print("Audio System");
+   lcd.setCursor(0, 1);
+   lcd.print("Fault");
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Please service your audio system");
+    delay(500);
+    digitalWrite(switchPin, LOW);
+ }
+ }
+ if(motionState == HIGH)
+ {
+   parkActive = false;
+ }
+ }if(digitalRead(readyPin) == HIGH)
+{ if(ready == true){
+ ready = false;
+ ampHot = false;
+ lowTemp = false;
+ mwActive = false;
+ battLow = false;
+ brakeFault = false;
+ audioFault = false;
+ bmsFault = false;
+ lcd.clear();
+}if(lightState == LOW)
+ {
+   digitalWrite(switchPin, HIGH);
+ lcd.clear();
+ lcd.backlight();
+ lcd.print("Headlights On");
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Your headlights are on");
+    delay(500);
+    digitalWrite(switchPin, LOW);
+ }else 
+ {
+   lcd.clear();
+   lcd.noBacklight();
+ }
+
+ if(doorState == LOW)
+ {
+  lcd.clear();
+  lcd.backlight();
+ lcd.write(0);
+ lcd.print(batteryLevel);
+ lcd.print("%");
+ lcd.setCursor(7, 0);
+ lcd.write(1);
+ lcd.print(degreesF1);
+ lcd.print("F");
+  lcd.setCursor(0, 1);
+ lcd.print("Temp: ");
+ lcd.print(degreesF3);
+ lcd.print("F");
+ if(batteryLevel <= 20) 
+ {
+   lcd.setCursor(0, 0);
+   lcd.write(3);
+ }
+ }else 
+ {
+   lcd.clear();
+   lcd.noBacklight();
+ }
+}
+ delay(1000);
+
+ if(parkState == LOW && doorState == LOW && lightState == LOW && ready == false)
+ {
+   if (demoMode == false)
+   { demoMode = true;
+
+   digitalWrite(switchPin, HIGH);
+   lcd.clear();
+   lcd.print("Motor Temp.");
+   lcd.setCursor(0, 1);
+   lcd.print("Too Hot");
+
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Motor temperature is too hot");
+   delay(500);
+   lcd.clear();
+   lcd.print("Amplifier Temp.");
+   lcd.setCursor(0, 1);
+   lcd.print("Too Hot");
+
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Amplifier temperature is too hot");
+   delay(500);
+   lcd.clear();
+   lcd.print("Ambient Temp.");
+   lcd.setCursor(0, 1);
+   lcd.print("Low");
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Cold weather is possible, please use caution.");
+   delay(500);
+   digitalWrite(switchPin, HIGH);
+   lcd.clear();
+   lcd.print("Battery Low");
+   lcd.setCursor(0, 1);
+   lcd.print("");
+
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Battery life is low, please recharge soon.");
+   delay(500);
+   digitalWrite(switchPin, LOW);
+   lcd.clear();
+   lcd.print("Please Fasten");
+   lcd.setCursor(0, 1);
+   lcd.print("Seatbelt");
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Please fasten your seatbelt");
+    delay(500);
+   lcd.clear();
+   lcd.print("Door Open");
+   lcd.setCursor(0, 1);
+   lcd.print("");
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("A door is open");
+    delay(500);
+   lcd.clear();
+   lcd.print("Master Warning");
+   lcd.setCursor(0, 1);
+   lcd.print("");
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Check Master Warning");
+    delay(500);
+    digitalWrite(switchPin, LOW);
+   lcd.clear();
+   lcd.print("BMS Fault");
+   lcd.setCursor(0, 1);
+   lcd.print("");
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Please service your battery monitoring system");
+    delay(500);
+   lcd.clear();
+   lcd.print("Parking Brake");
+   lcd.setCursor(0, 1);
+   lcd.print("Engaged");
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Your parking brake is engaged");
+    delay(500);
+   lcd.clear();
+   lcd.print("Brake System");
+   lcd.setCursor(0, 1);
+   lcd.print("Fault");
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Please service your brake system");
+    delay(500);
+   lcd.clear();
+   lcd.print("Audio System");
+   lcd.setCursor(0, 1);
+   lcd.print("Fault");
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Please service your audio system");
+    delay(500);
+ lcd.clear();
+ lcd.backlight();
+ lcd.print("Headlights On");
+   tone(PWM, 800, 500);
+   delay(500);
+   noTone(PWM);
+   text2speech.sayText("Your headlights are on");
+    delay(500);
+    lcd.clear();
+    lcd.print("Ready To Drive.");
+   text2speech.sayText("Ready to drive");
+    delay(500);
+    digitalWrite(switchPin, LOW);
+}
+}
+}
+
+float getVoltage2(int A1)
+{
+
+ return (analogRead(A1) * 0.004882814);
+
+}
+
+float getVoltage3(int A2)
+{
+
+ return (analogRead(A2) * 0.004882814);
+
+}
+
+float getVoltage4(int A3)
+{
+
+ return (analogRead(A3) * 0.004882814);
+
+}
