@@ -23,7 +23,7 @@
 BLEClientDis  bleClientDis;
 BLEAncs       bleancs;
 
-#define BUFSIZE   128
+#define BUFSIZE   1000
 char buffer[BUFSIZE];
 
 // Check BLEAncs.h for AncsNotification_t
@@ -151,8 +151,9 @@ void connect_callback(uint16_t conn_handle)
 
     // ANCS requires pairing to work, it makes sense to request security here as well
     Serial.print("Attempting to PAIR with the iOS device, please press PAIR on your phone ... ");
-    speak("[t3][v10] Please accept pairing request.");
     conn->requestPairing();
+    speak("[x1] sound403 ");
+     speak("[x0][t3][v10] Please accept pairing request.");
   }
 }
 
@@ -177,7 +178,8 @@ void connection_secured_callback(uint16_t conn_handle)
       Serial.println("Enabling notifications");
       Serial.println();
       bleancs.enableNotification();
-      speak("[t3][v10] Ready to use.");
+      speak("[x1] sound403 ");
+  speak("[x0][t3][v10] Ready to use. ");
     }
   }
 }
@@ -187,6 +189,110 @@ void ancs_notification_callback(AncsNotification_t* notif)
   
   uint32_t const uid = notif->uid;
 if (notif->eventID == ANCS_EVT_NOTIFICATION_ADDED){
+  if ( notif->categoryID == ANCS_CAT_INCOMING_CALL){
+     memset(buffer, 0, BUFSIZE);
+  if ( bleancs.getTitle(uid, buffer, BUFSIZE) )
+  {
+    char u202D[3] = { 0xE2, 0x80, 0xAD }; // U+202D in UTF-8
+    char u202C[3] = { 0xE2, 0x80, 0xAC }; // U+202C in UTF-8
+
+    int len = strlen(buffer);
+
+    if ( 0 == memcmp(&buffer[len-3], u202C, 3) )
+    {
+      len -= 3;
+      buffer[len] = 0; // chop ending U+202C
+    }
+
+    if ( 0 == memcmp(buffer, u202D, 3) )
+    {
+      memmove(buffer, buffer+3, len-2); // move null-terminator as well
+    }
+  }
+  
+  Serial.printf("%-15s %s\n", buffer, EVENT_STR[notif->eventID]);
+   speak("[x1] sound204 ");
+  speak("[x0][t3][v10]");
+  speak(buffer);
+  speak(" is calling");
+  }else if( notif->categoryID == ANCS_CAT_SOCIAL){
+  // Get notification Title
+  // iDevice often include Unicode "Bidirection Text Control" in the Title.
+  // Mostly are U+202D as beginning and U+202C as ending. Let's remove them
+  memset(buffer, 0, BUFSIZE);
+  if ( bleancs.getTitle(uid, buffer, BUFSIZE) )
+  {
+    char u202D[3] = { 0xE2, 0x80, 0xAD }; // U+202D in UTF-8
+    char u202C[3] = { 0xE2, 0x80, 0xAC }; // U+202C in UTF-8
+
+    int len = strlen(buffer);
+
+    if ( 0 == memcmp(&buffer[len-3], u202C, 3) )
+    {
+      len -= 3;
+      buffer[len] = 0; // chop ending U+202C
+    }
+
+    if ( 0 == memcmp(buffer, u202D, 3) )
+    {
+      memmove(buffer, buffer+3, len-2); // move null-terminator as well
+    }
+  }
+  
+  Serial.printf("%-15s %s\n", buffer, EVENT_STR[notif->eventID]);
+  speak("[x1] sound123 ");
+  speak("[x0][t3][v10] New message from: ");
+  speak(buffer);
+
+  // Get notification Message
+  memset(buffer, 0, BUFSIZE);
+  bleancs.getMessage(uid, buffer, BUFSIZE);
+  Serial.printf("  %s\n", buffer);
+  speak("It says:");
+  speak(buffer);
+  
+
+  Serial.println();
+}
+ else if( notif->categoryID == ANCS_CAT_EMAIL){
+  // Get notification Title
+  // iDevice often include Unicode "Bidirection Text Control" in the Title.
+  // Mostly are U+202D as beginning and U+202C as ending. Let's remove them
+  memset(buffer, 0, BUFSIZE);
+  if ( bleancs.getTitle(uid, buffer, BUFSIZE) )
+  {
+    char u202D[3] = { 0xE2, 0x80, 0xAD }; // U+202D in UTF-8
+    char u202C[3] = { 0xE2, 0x80, 0xAC }; // U+202C in UTF-8
+
+    int len = strlen(buffer);
+
+    if ( 0 == memcmp(&buffer[len-3], u202C, 3) )
+    {
+      len -= 3;
+      buffer[len] = 0; // chop ending U+202C
+    }
+
+    if ( 0 == memcmp(buffer, u202D, 3) )
+    {
+      memmove(buffer, buffer+3, len-2); // move null-terminator as well
+    }
+  }
+  
+  Serial.printf("%-15s %s\n", buffer, EVENT_STR[notif->eventID]);
+  speak("[x1] sound110 ");
+  speak("[x0][t3][v10] New e-mail from: ");
+  speak(buffer);
+
+  // Get notification Message
+  memset(buffer, 0, BUFSIZE);
+  bleancs.getMessage(uid, buffer, BUFSIZE);
+  Serial.printf("  %s\n", buffer);
+  speak("It says:");
+  speak(buffer);
+  
+
+  Serial.println();
+} else{
   // Application ID & Name
   char appID[128] = { 0 };
   bleancs.getAppID(uid, appID, sizeof(appID));
@@ -195,7 +301,8 @@ if (notif->eventID == ANCS_EVT_NOTIFICATION_ADDED){
   bleancs.getAppAttribute(appID, ANCS_APP_ATTR_DISPLAY_NAME, buffer, BUFSIZE);
 
   Serial.printf("%-15s (%s)\n", buffer, appID);
-  speak("[t3][v10] Notification from: ");
+  speak("[x1] sound120 ");
+  speak("[x0][t3][v10] New notification from: ");
   speak(buffer);
 
   // Get notification Title
@@ -241,6 +348,7 @@ if (notif->eventID == ANCS_EVT_NOTIFICATION_ADDED){
     bleancs.performAction(notif->uid, ANCS_ACTION_POSITIVE);
   }*/
 }
+}
 
 /**
  * Callback invoked when a connection is dropped
@@ -253,9 +361,11 @@ void disconnect_callback(uint16_t conn_handle, uint8_t reason)
 
   Serial.println();
   Serial.print("Disconnected, reason = 0x"); Serial.println(reason, HEX);
+  speak("[x1] sound401 ");
+  speak("[x0][t3][v10] Disconnected ");
 }
 
-void waitForSpeech(unsigned long timeout = 500000) {
+void waitForSpeech(unsigned long timeout = 80000) {
   unsigned long start = millis();
   bool done = false;
   while ( ! done && (millis() - start) < timeout ) {
@@ -268,11 +378,14 @@ void waitForSpeech(unsigned long timeout = 500000) {
   }
 }
 void speak(char* msg) {
-  Serial1.write(0xFD);
-  Serial1.write((byte)0x0);
-  Serial1.write(2 + strlen(msg));
-  Serial1.write(0x01);
-  Serial1.write((byte)0x0);
-  Serial1.write(msg);
-  waitForSpeech();
+  Serial.println(msg);
+  short meslength= strlen(msg)+2;
+    Serial1.write(0xFD);
+    Serial1.write((meslength >> 8) & 0xFF);
+    Serial1.write(meslength & 0xFF);
+    Serial1.write(0x01);
+    Serial1.write((byte)0x0);
+    Serial1.write(msg);
+    waitForSpeech();
+     
 }
