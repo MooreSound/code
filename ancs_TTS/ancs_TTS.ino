@@ -19,6 +19,12 @@
 
 #include <bluefruit.h>
 
+const int redLED = A0;
+const int greenLED = A1;
+const int blueLED = A2;
+const int button = A3;
+
+
 // BLE Client Service
 BLEClientDis  bleClientDis;
 BLEAncs       bleancs;
@@ -37,6 +43,13 @@ const char* CAT_STR  [] =
 
 void setup()
 {
+   pinMode(button, INPUT_PULLUP);
+  pinMode(redLED, OUTPUT);
+pinMode(greenLED, OUTPUT);
+pinMode(blueLED, OUTPUT);
+digitalWrite(redLED, HIGH);
+digitalWrite(greenLED, HIGH);
+digitalWrite(blueLED, HIGH);
   Serial.begin(115200);
   Serial1.begin(115200);
 //  while ( !Serial ) delay(10);   // for nrf52840 with native usb
@@ -68,10 +81,16 @@ void setup()
   bleancs.setNotificationCallback(ancs_notification_callback);
 
   speak("[t3][v10] Power On");
+  digitalWrite(redLED, LOW);
+digitalWrite(greenLED, LOW);
+digitalWrite(blueLED, LOW);
 
   // Set up and start advertising
   startAdv();
    speak("[t3][v10] Ready for connection");
+     digitalWrite(redLED, LOW);
+digitalWrite(greenLED, LOW);
+digitalWrite(blueLED, HIGH);
 }
 
 void startAdv(void)
@@ -111,7 +130,12 @@ void loop()
   // If service is not yet discovered
   if ( !bleancs.discovered() ) return;
 
-  // Your code here
+if(digitalRead(button)==LOW){
+ digitalWrite(redLED, LOW);
+digitalWrite(greenLED, LOW);
+digitalWrite(blueLED, LOW);
+}
+
 }
 
 void connect_callback(uint16_t conn_handle)
@@ -178,8 +202,14 @@ void connection_secured_callback(uint16_t conn_handle)
       Serial.println("Enabling notifications");
       Serial.println();
       bleancs.enableNotification();
+        digitalWrite(redLED, LOW);
+digitalWrite(greenLED, HIGH);
+digitalWrite(blueLED, LOW);
       speak("[x1] sound403 ");
   speak("[x0][t3][v10] Ready to use. ");
+    digitalWrite(redLED, LOW);
+digitalWrite(greenLED, LOW);
+digitalWrite(blueLED, LOW);
     }
   }
 }
@@ -211,6 +241,9 @@ if (notif->eventID == ANCS_EVT_NOTIFICATION_ADDED){
   }
   
   Serial.printf("%-15s %s\n", buffer, EVENT_STR[notif->eventID]);
+    digitalWrite(redLED, HIGH);
+digitalWrite(greenLED, HIGH);
+digitalWrite(blueLED, HIGH);
    speak("[x1] sound204 ");
   speak("[x0][t3][v10]");
   speak(buffer);
@@ -240,6 +273,9 @@ if (notif->eventID == ANCS_EVT_NOTIFICATION_ADDED){
   }
   
   Serial.printf("%-15s %s\n", buffer, EVENT_STR[notif->eventID]);
+    digitalWrite(redLED, LOW);
+digitalWrite(greenLED, HIGH);
+digitalWrite(blueLED, LOW);
   speak("[x1] sound123 ");
   speak("[x0][t3][v10] New message from: ");
   speak(buffer);
@@ -279,6 +315,9 @@ if (notif->eventID == ANCS_EVT_NOTIFICATION_ADDED){
   }
   
   Serial.printf("%-15s %s\n", buffer, EVENT_STR[notif->eventID]);
+    digitalWrite(redLED, LOW);
+digitalWrite(greenLED, LOW);
+digitalWrite(blueLED, HIGH);
   speak("[x1] sound110 ");
   speak("[x0][t3][v10] New e-mail from: ");
   speak(buffer);
@@ -301,6 +340,9 @@ if (notif->eventID == ANCS_EVT_NOTIFICATION_ADDED){
   bleancs.getAppAttribute(appID, ANCS_APP_ATTR_DISPLAY_NAME, buffer, BUFSIZE);
 
   Serial.printf("%-15s (%s)\n", buffer, appID);
+    digitalWrite(redLED, HIGH);
+digitalWrite(greenLED, HIGH);
+digitalWrite(blueLED, LOW);
   speak("[x1] sound120 ");
   speak("[x0][t3][v10] New notification from: ");
   speak(buffer);
@@ -348,6 +390,7 @@ if (notif->eventID == ANCS_EVT_NOTIFICATION_ADDED){
     bleancs.performAction(notif->uid, ANCS_ACTION_POSITIVE);
   }*/
 }
+
 }
 
 /**
@@ -361,6 +404,9 @@ void disconnect_callback(uint16_t conn_handle, uint8_t reason)
 
   Serial.println();
   Serial.print("Disconnected, reason = 0x"); Serial.println(reason, HEX);
+    digitalWrite(redLED, HIGH);
+digitalWrite(greenLED, LOW);
+digitalWrite(blueLED, LOW);
   speak("[x1] sound401 ");
   speak("[x0][t3][v10] Disconnected ");
 }
