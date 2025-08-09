@@ -19,13 +19,12 @@
 #include <SPI.h>
 
 #include "BluetoothA2DPSink.h"
-#include <TTS.h>
 
 // Media pins
-#define PWM 25
+
 
 BluetoothA2DPSink a2dp_sink;
-TTS text2speech(PWM); 
+
 
 
 const byte csPin           = 5;       // MCP42100 chip select pin
@@ -40,9 +39,12 @@ const byte pot1Shutdown    = 0x22;    // pot1 shutdown
 const byte potBothShutdown = 0x23;    // pot0 and pot1 simultaneous shutdown
 
 const int INPUT_PIN = 34;
+const int INPUT_PIN2 = 35;
 
-const int LED = 2;
+const int LED1 = 2;
+const int LED2 = 14;
 const int dacMute = 13;
+
 
 const int asInhibit = 4;
 const int asSelect = 15;
@@ -54,7 +56,10 @@ bool Connected = false;
 
 char* songTitle;
 char* artistName;
-char* albumName;
+
+#define RXD2 16
+#define TXD2 17
+
 
 
 
@@ -79,19 +84,26 @@ void setup() {
    pinMode(asSelect, OUTPUT);
   
    pinMode(INPUT_PIN, INPUT_PULLUP);
+   pinMode(INPUT_PIN2, INPUT_PULLUP);
     digitalWrite(csPin, HIGH);        // chip select default to de-selected
   pinMode(csPin, OUTPUT);  
   pinMode(dacMute, OUTPUT); 
   SPI.begin();
   Serial.begin(115200);
+  Serial2.begin(115200, SERIAL_8N1, RXD2, TXD2);
   
-  pinMode(LED, OUTPUT);
+  pinMode(LED1, OUTPUT);
+  pinMode(LED2, OUTPUT);
+  digitalWrite(LED1, HIGH);
+    digitalWrite(LED2, HIGH);
   int volumeScaled = map(volume, 0, 30, 0, 255);
  
    setPotWiper(potBoth, volumeScaled);
   setAudioSource(2);
-  text2speech.setPitch(4);
-  text2speech.sayText("Power On"); 
+  speak("[t3][v10] Power On");
+  digitalWrite(LED1, LOW);
+    digitalWrite(LED2, LOW);
+
 
 
   i2s_pin_config_t my_pin_config = {
@@ -118,7 +130,7 @@ void setup() {
   a2dp_sink.set_avrc_metadata_attribute_mask(ESP_AVRC_MD_ATTR_TITLE | ESP_AVRC_MD_ATTR_ARTIST | ESP_AVRC_MD_ATTR_ALBUM);
   a2dp_sink.set_i2s_config(i2s_config);  
   a2dp_sink.start("ESP32 Audio");
-  announce("Ready to connect"); 
+   speak("[t3][v10] Ready for connection");
   delay(100);  
 
 }
@@ -129,28 +141,29 @@ void loop() {
     if(Connected == false){
     Connected = true;
     Serial.println("Bluetooth Connected");
-    digitalWrite(LED, HIGH);
-    announce("Bluetooth is connected"); 
+    digitalWrite(LED1, HIGH);
+    setAudioSource(2);
+    speak("[t3][v10] Connected"); 
      a2dp_sink.set_volume(0x7F);
     delay(2000);
-    digitalWrite(LED, LOW);
     }
   }else{
     if(Connected == true){
-    Connected = false;
-     announce("Bluetooth is disconnected"); 
+    Connected = false; 
+    setAudioSource(2);
+    speak("[t3][v10] Disconnected"); 
      delay(50);
     }
      mute();
     Serial.println("Bluetooth Disconnected");
-    digitalWrite(LED, HIGH);
+    digitalWrite(LED1, HIGH);
     delay(100);
-    digitalWrite(LED, LOW);
+    digitalWrite(LED1, LOW);
     delay(100);
   }
   if( a2dp_sink.get_audio_state()==ESP_A2D_AUDIO_STATE_STARTED){
     //Serial.println("Bluetooth Active");
-    digitalWrite(LED, HIGH);
+    digitalWrite(LED2, HIGH);
     if(volume == 0){
    mute();
   }else{
@@ -158,7 +171,7 @@ void loop() {
   }
     is_active = true;
   }else{
-    digitalWrite(LED, LOW);
+    digitalWrite(LED2, LOW);
      mute();
     is_active = false;
   }
@@ -166,7 +179,7 @@ void loop() {
   
   
 if(readAnalogButton() == 2){
-  digitalWrite(LED, LOW);
+  digitalWrite(LED1, LOW);
     Serial.println("changing state...");
     if (is_active == false){
       Serial.println("play");
@@ -179,57 +192,54 @@ if(readAnalogButton() == 2){
       mute();
       a2dp_sink.pause();
     }
+     digitalWrite(LED1, HIGH);
     delay(50);
 }
 else if(readAnalogButton() == 1){
-  digitalWrite(LED, LOW);
+  digitalWrite(LED1, LOW);
   a2dp_sink.next();
   delay(50);
+   digitalWrite(LED1, HIGH);
 }
 else if(readAnalogButton() == 3){
-  digitalWrite(LED, LOW);
+  digitalWrite(LED1, LOW);
   a2dp_sink.previous();
   delay(50);
+   digitalWrite(LED1, HIGH);
 }
-else if(readAnalogButton() == 4){
+else if(readAnalogButton2() == 1){
   volUp();
-  digitalWrite(LED, LOW);
+  digitalWrite(LED1, LOW);
   Serial.print("Volume: ");
   Serial.println(volume);
-  if (is_active == false){
-    digitalWrite(LED, HIGH);
-       setAudioSource(2);
-      announce("Volume:");
-       sayNumber(volume);
-    }
+    digitalWrite(LED1, HIGH);
   delay(50);
 }
-else if(readAnalogButton() == 5){
+else if(readAnalogButton2() == 2){
   volDown();
-  digitalWrite(LED, LOW);
+  digitalWrite(LED1, LOW);
   Serial.print("Volume: ");
   Serial.println(volume);
-   if (is_active == false){
-    digitalWrite(LED, HIGH);
-       announce("Volume:");
-       sayNumber(volume);
-    }
+    digitalWrite(LED1, HIGH);
   delay(50);
 }
-/*else if(readAnalogButton() == 6){
- announce("Now Playing:");
- announce(artistName);
-}*/
-
-  
+  else if(readAnalogButton2() == 3){
+    digitalWrite(LED1, LOW);
+    delay(50);
+    digitalWrite(LED1, HIGH);
+    digitalWrite(LED2, HIGH);
+speak("[t3][v10] Now playing:");
+speak(songTitle);
+speak("[t3][v10] By");
+speak(artistName);
+   
+  delay(50);
+}
 
 delay(50);
 }
 
-void announce(char* text){
-  setAudioSource(2);
-  text2speech.sayText(text);
-}
+
 
 void volUp(){
 int volumeScaled = map(volume, 0, 30, 0, 255);
@@ -260,7 +270,7 @@ int volumeScaled = map(volume, 0, 30, 0, 255);
 
   void unmute(){
  int volumeScaled = map(volume, 0, 30, 0, 255);
- 
+ setAudioSource(1);
    setPotWiper(potBoth, volumeScaled);
    digitalWrite(dacMute, HIGH);
   }
@@ -279,11 +289,17 @@ int readAnalogButton() {
   int button = analogRead(INPUT_PIN);
   if (button > 4000) return 0;
   if (button < 100) return 1;
-  if (button < 1900) return 2;
-  if (button < 2600) return 3;
-  if (button < 2900) return 4;
-  if (button < 3200) return 5;
-  if (button < 3400) return 6;
+  if (button < 2000) return 2;
+  if (button < 2700) return 3;
+  
+}
+int readAnalogButton2() {
+  int button = analogRead(INPUT_PIN2);
+  if (button > 4000) return 0;
+  if (button < 100) return 1;
+  if (button < 2000) return 2;
+  if (button < 2700) return 3;
+  
 }
 
 void setAudioSource(int s){
@@ -299,61 +315,29 @@ void setAudioSource(int s){
      digitalWrite(asSelect, HIGH); 
 }
 }
-void sayNumber(long n) {
-  if (n<0) {
-text2speech.sayText("Negative");
-    sayNumber(-n);
-  } else if (n==0) {
-    text2speech.sayText("0");
-  } else {
-    if (n>=1000) {
-      int thousands = n / 1000;
-      sayNumber(thousands);
-     text2speech.sayText("Thousand");
-      n %= 1000;
-      if ((n > 0) && (n<100));
-    }
-    if (n>=100) {
-      int hundreds = n / 100;
-      sayNumber(hundreds);
-      text2speech.sayText("Hundred");
-      n %= 100;
-      if (n > 0);
-    }
-    if (n>19) {
-      int tens = n / 10;
-      switch (tens) {
-        case 2: text2speech.sayText("Twenty"); break;
-        case 3: text2speech.sayText("Thirty"); break;
-        case 4: text2speech.sayText("Forty");  break;
-        case 5: text2speech.sayText("Fifty"); break;
-        case 6: text2speech.sayText("Sixty"); break;
-        case 7: text2speech.sayText("Seventy"); break;
-        case 8: text2speech.sayText("Eighty"); break;
-        case 9: text2speech.sayText("Ninety"); break;
+void waitForSpeech(unsigned long timeout = 30000) {
+  unsigned long start = millis();
+  bool done = false;
+  while ( ! done && (millis() - start) < timeout ) {
+    while ( Serial2.available() ) {
+      if ( Serial2.read() == 0x4F ) {
+        done = true;
+        break;
       }
-      n %= 10;
-    }
-    switch(n) {
-      case 1: text2speech.sayText("1"); break;
-      case 2: text2speech.sayText("2"); break;
-      case 3: text2speech.sayText("3"); break;
-      case 4: text2speech.sayText("4"); break;
-      case 5: text2speech.sayText("5"); break;
-      case 6: text2speech.sayText("6"); break;
-      case 7: text2speech.sayText("7"); break;
-      case 8: text2speech.sayText("8"); break;
-      case 9: text2speech.sayText("9"); break;
-      case 10: text2speech.sayText("Ten"); break;
-      case 11: text2speech.sayText("Eleven"); break;
-      case 12: text2speech.sayText("Twelve"); break;
-      case 13: text2speech.sayText("Thirteen"); break;
-      case 14: text2speech.sayText("Fourteen");break;
-      case 15: text2speech.sayText("Fifteen"); break;
-      case 16: text2speech.sayText("Sixteen"); break;
-      case 17: text2speech.sayText("Seventeen"); break;
-      case 18: text2speech.sayText("Eighteen"); break;
-      case 19: text2speech.sayText("Nineteen"); break;
     }
   }
+}
+void speak(char* msg) {
+   digitalWrite(LED2, HIGH);
+   setAudioSource(2);
+  Serial.println(msg);
+  short meslength= strlen(msg)+2;
+    Serial2.write(0xFD);
+    Serial2.write((meslength >> 8) & 0xFF);
+    Serial2.write(meslength & 0xFF);
+    Serial2.write(0x01);
+    Serial2.write((byte)0x0);
+    Serial2.write(msg);
+    waitForSpeech();
+     
 }
