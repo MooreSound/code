@@ -17,15 +17,21 @@
 // ==> Example to use built in DAC of ESP32
 
 #include <SPI.h>
-
+#include "audiodata.h"
 #include "BluetoothA2DPSink.h"
+#include "driver/i2s.h"
 
 // Media pins
 
-
+const unsigned int bluetoothConn_raw_len = 43600;    //CONN
+const unsigned int bluetoothDisconn_raw_len = 55730; //DISCONN
+const i2s_port_t I2S_PORT = I2S_NUM_0;
+const unsigned char *ConnRawFile=bluetoothConn_raw;       //CONN
+const unsigned char *DisconnRawFile=bluetoothDisconn_raw; //DISCONN
 BluetoothA2DPSink a2dp_sink;
-
-
+esp_a2d_connection_state_t last_state;
+unsigned const char* AudioData;
+bool playmsg;
 
 const byte csPin           = 5;       // MCP42100 chip select pin
 const int  maxPositions    = 256;     // wiper can move from 0 to 255 = 256 positions
@@ -46,16 +52,13 @@ const int LED2 = 14;
 const int dacMute = 13;
 
 
-const int asInhibit = 4;
-const int asSelect = 15;
-
 int volume = 20;
 
 bool is_active = false;
 bool Connected = false;
 
-char* songTitle;
-char* artistName;
+String songTitle;
+String artistName;
 
 #define RXD2 16
 #define TXD2 17
@@ -80,9 +83,6 @@ char* artistName;
 
 
 void setup() {
-  pinMode(asInhibit, OUTPUT);
-   pinMode(asSelect, OUTPUT);
-  
    pinMode(INPUT_PIN, INPUT_PULLUP);
    pinMode(INPUT_PIN2, INPUT_PULLUP);
     digitalWrite(csPin, HIGH);        // chip select default to de-selected
@@ -99,8 +99,7 @@ void setup() {
   int volumeScaled = map(volume, 0, 30, 0, 255);
  
    setPotWiper(potBoth, volumeScaled);
-  setAudioSource(2);
-  speak("[t3][v10] Power On");
+   delay(1000);
   digitalWrite(LED1, LOW);
     digitalWrite(LED2, LOW);
 
@@ -127,10 +126,9 @@ void setup() {
   };
 
   a2dp_sink.set_avrc_metadata_callback(avrc_metadata_callback);
-  a2dp_sink.set_avrc_metadata_attribute_mask(ESP_AVRC_MD_ATTR_TITLE | ESP_AVRC_MD_ATTR_ARTIST | ESP_AVRC_MD_ATTR_ALBUM);
+  a2dp_sink.set_avrc_metadata_attribute_mask(ESP_AVRC_MD_ATTR_TITLE | ESP_AVRC_MD_ATTR_ARTIST);
   a2dp_sink.set_i2s_config(i2s_config);  
   a2dp_sink.start("ESP32 Audio");
-   speak("[t3][v10] Ready for connection");
   delay(100);  
 
 }
@@ -142,16 +140,14 @@ void loop() {
     Connected = true;
     Serial.println("Bluetooth Connected");
     digitalWrite(LED1, HIGH);
-    setAudioSource(2);
-    speak("[t3][v10] Connected"); 
+    playAudio(1);
      a2dp_sink.set_volume(0x7F);
     delay(2000);
     }
   }else{
     if(Connected == true){
     Connected = false; 
-    setAudioSource(2);
-    speak("[t3][v10] Disconnected"); 
+      playAudio(0);
      delay(50);
     }
      mute();
@@ -183,7 +179,7 @@ if(readAnalogButton() == 2){
     Serial.println("changing state...");
     if (is_active == false){
       Serial.println("play");
-       setAudioSource(1);
+     
        unmute();
       a2dp_sink.play();
     } else {
@@ -212,27 +208,24 @@ else if(readAnalogButton2() == 1){
   digitalWrite(LED1, LOW);
   Serial.print("Volume: ");
   Serial.println(volume);
+    delay(50);
     digitalWrite(LED1, HIGH);
-  delay(50);
+  
 }
 else if(readAnalogButton2() == 2){
   volDown();
   digitalWrite(LED1, LOW);
   Serial.print("Volume: ");
   Serial.println(volume);
-    digitalWrite(LED1, HIGH);
-  delay(50);
+     delay(50);
+     digitalWrite(LED1, HIGH);
+ 
 }
   else if(readAnalogButton2() == 3){
     digitalWrite(LED1, LOW);
     delay(50);
     digitalWrite(LED1, HIGH);
     digitalWrite(LED2, HIGH);
-speak("[t3][v10] Now playing:");
-speak(songTitle);
-speak("[t3][v10] By");
-speak(artistName);
-   
   delay(50);
 }
 
@@ -265,12 +258,11 @@ int volumeScaled = map(volume, 0, 30, 0, 255);
   void mute(){
     setPotWiper(potBothShutdown, 0);
     digitalWrite(dacMute, LOW);
-    setAudioSource(0);
   }
 
   void unmute(){
  int volumeScaled = map(volume, 0, 30, 0, 255);
- setAudioSource(1);
+
    setPotWiper(potBoth, volumeScaled);
    digitalWrite(dacMute, HIGH);
   }
@@ -287,7 +279,7 @@ void setPotWiper(int addr, int pos) {
 
 int readAnalogButton() {
   int button = analogRead(INPUT_PIN);
-  if (button > 4000) return 0;
+  if (button > 3900) return 0;
   if (button < 100) return 1;
   if (button < 2000) return 2;
   if (button < 2700) return 3;
@@ -295,49 +287,36 @@ int readAnalogButton() {
 }
 int readAnalogButton2() {
   int button = analogRead(INPUT_PIN2);
-  if (button > 4000) return 0;
+  if (button > 3900) return 0;
   if (button < 100) return 1;
   if (button < 2000) return 2;
   if (button < 2700) return 3;
   
 }
 
-void setAudioSource(int s){
-  if(s == 0){
-    digitalWrite(asInhibit, HIGH);
-     digitalWrite(asSelect, LOW);
-  } else if(s == 1){
-    digitalWrite(asInhibit, LOW);
-     digitalWrite(asSelect, LOW);
-
-}else if(s == 2){
-    digitalWrite(asInhibit, LOW);
-     digitalWrite(asSelect, HIGH); 
-}
-}
-void waitForSpeech(unsigned long timeout = 30000) {
-  unsigned long start = millis();
-  bool done = false;
-  while ( ! done && (millis() - start) < timeout ) {
-    while ( Serial2.available() ) {
-      if ( Serial2.read() == 0x4F ) {
-        done = true;
-        break;
-      }
-    }
+void playAudio(bool type) {
+  AudioData = ConnRawFile;
+  int len = bluetoothConn_raw_len;
+  if (type == 0) {
+    AudioData = DisconnRawFile;
+    len = bluetoothDisconn_raw_len;
   }
-}
-void speak(char* msg) {
+  i2s_set_sample_rates(I2S_PORT, 11025);
+  uint32_t index = 0; 
+  size_t BytesWritten;
+  const unsigned char *Data;
+  int rest;
+  int byteSize = 4;
+ unmute();
    digitalWrite(LED2, HIGH);
-   setAudioSource(2);
-  Serial.println(msg);
-  short meslength= strlen(msg)+2;
-    Serial2.write(0xFD);
-    Serial2.write((meslength >> 8) & 0xFF);
-    Serial2.write(meslength & 0xFF);
-    Serial2.write(0x01);
-    Serial2.write((byte)0x0);
-    Serial2.write(msg);
-    waitForSpeech();
-     
+  playmsg = 1;
+  while (index < len) {
+    rest = len - index;
+    if (rest < 4){byteSize = rest;}
+    Data=AudioData+index;
+    i2s_write(I2S_PORT,Data,byteSize,&BytesWritten,portMAX_DELAY); 
+    index+=4;
+  }
+  playmsg = 0;
+  i2s_set_sample_rates(I2S_PORT, 44100);
 }
